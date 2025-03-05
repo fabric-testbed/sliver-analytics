@@ -1,0 +1,73 @@
+services:
+  database:
+    image: fabrictestbed/postgres:12.3
+    container_name: analytics-db
+    ports:
+      - 5432:5432
+    networks:
+      - frontend
+      - backend
+    restart: always
+    volumes:
+      - ./pg_data/data:${PGDATA:-/var/lib/postgresql/data}
+      - ./pg_data/logs:${POSTGRES_INITDB_WALDIR:-/var/log/postgresql}
+    environment:
+       - POSTGRES_HOST=${POSTGRES_HOST:-database}
+       - POSTGRES_PORT=5432
+       - POSTGRES_MULTIPLE_DATABASES=${POSTGRES_DB:-analytics}
+       - POSTGRES_USER=${POSTGRES_USER:-fabric}
+       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-fabric}
+       - PGDATA=${PGDATA:-/var/lib/postgresql/data}
+
+  nginx:
+    image: library/nginx:1
+    container_name: analytics-nginx
+    networks:
+      - frontend
+      - backend
+    ports:
+      - 8443:443
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl/fullchain.pem:/etc/ssl/public.pem
+      - ./ssl/privkey.pem:/etc/ssl/private.pem
+      - ./nginx-logs:/var/log/nginx
+    restart: always
+
+  analytics-api:
+    build: ./analytics-api
+    container_name: analytics-api
+    restart: always
+    depends_on:
+      - database
+    networks:
+      - backend   # Ensure the API is on the backend network
+    environment:
+      DATABASE_URL: "postgresql://fabric:fabric@analytics-db:5432/analytics"
+
+  dash-app:
+    build: ./dash-app
+    container_name: dash-app
+    depends_on:
+      - analytics-api
+    networks:
+      - backend   # Ensure the API is on the backend network
+    environment:
+      - API_URL=http://analytics-api:5000
+
+  vouch-proxy:
+    container_name: analytics-vouch-proxy
+    networks:
+      - frontend
+      - backend
+    image: fabrictestbed/vouch-proxy:0.27.1
+    volumes:
+      - ./vouch:/config
+      - ./data:/data
+    restart: always
+
+networks:
+  frontend:
+  backend:
+    internal: true

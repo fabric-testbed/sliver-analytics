@@ -1,0 +1,6 @@
+flask
+flasgger
+flask_sqlalchemy
+psycopg2-binary
+
+
