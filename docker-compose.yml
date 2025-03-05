@@ -2,6 +2,8 @@ services:
   database:
     image: fabrictestbed/postgres:12.3
     container_name: analytics-db
+    ports:
+      - 5432:5432
     networks:
       - frontend
       - backend
@@ -30,7 +32,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./ssl/fullchain.pem:/etc/ssl/public.pem
       - ./ssl/privkey.pem:/etc/ssl/private.pem
-      - /opt/data/production/logs/nginx/cm:/var/log/nginx
+      - ./nginx-logs:/var/log/nginx
     restart: always
 
   analytics-api:
@@ -39,6 +41,8 @@ services:
     restart: always
     depends_on:
       - database
+    networks:
+      - backend   # Ensure the API is on the backend network
     environment:
       DATABASE_URL: "postgresql://fabric:fabric@analytics-db:5432/analytics"
 
@@ -47,6 +51,8 @@ services:
     container_name: dash-app
     depends_on:
       - analytics-api
+    networks:
+      - backend   # Ensure the API is on the backend network
     environment:
       - API_URL=http://analytics-api:5000
 
