@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 # PostgreSQL Configuration
 #app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://fabric:fabric@report-db:5432/report"
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://fabric:fabric@reports.fabric-testbed.net:5432/report"
+app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://fabric:fabric@reports.fabric-testbed.net:5432/analytics"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -499,6 +499,7 @@ def get_resource_usage():
 
     print(f"Query Params - Component: {component_type}, Start: {start_time}, End: {end_time}, Project: {project_uuid}, User: {user_uuid}")
 
+    '''
     # Query resource usage with filters
     query = (
         db.session.query(
@@ -511,6 +512,23 @@ def get_resource_usage():
         .outerjoin(Projects, Projects.id == Slivers.project_id)
         .outerjoin(Users, Users.id == Slivers.user_id)
         .filter(func.lower(Components.type) == component_type)
+    )
+    '''
+    query = (
+        db.session.query(
+            Projects.project_uuid,
+            Projects.project_name,
+            Users.user_uuid,
+            Users.user_email,
+            func.count(Components.component_guid).label("count")
+        )
+            .outerjoin(Slivers, Slivers.id == Components.sliver_id)
+            .outerjoin(Slices, Slices.id == Slivers.slice_id)  # Ensure the correct join path
+            .outerjoin(Projects, Projects.id == Slices.project_id)  # Join Projects through Slices
+            .outerjoin(Users, Users.id == Slices.user_id)  # Join Users through Slices
+            .filter(func.lower(Components.type) == component_type.lower())  # Handle case-insensitivity
+            .group_by(Projects.project_uuid, Projects.project_name, Users.user_uuid, Users.user_email)
+    # Group by non-aggregated columns
     )
 
     # Apply time range filter: Components counted if slice was active within the range
@@ -543,11 +561,12 @@ def get_resource_usage():
     return jsonify([
         {
             "project_uuid": row.project_uuid,
+            "project_name": row.project_name,
             "user_uuid": row.user_uuid,
+            "user_email": row.user_email,
             "count": row.count
         } for row in results
     ])
-
 
 
 @app.route("/user_slices", methods=["GET"])

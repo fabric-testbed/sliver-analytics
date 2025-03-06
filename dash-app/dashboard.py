@@ -39,9 +39,10 @@ def fetch_projects():
         return []
 
 
-# Function to fetch slices for a user, project, or time range
+# Function to fetch all slices for a user, project, or time range
 def fetch_slices(user_uuid=None, project_uuid=None, start_time=None, end_time=None):
-    params = {"per_page": 100}
+    params = {"per_page": 100, "page": 1}  # Start with page 1
+    all_slices = []
 
     if user_uuid:
         params["user_uuid"] = user_uuid
@@ -52,8 +53,21 @@ def fetch_slices(user_uuid=None, project_uuid=None, start_time=None, end_time=No
         params["end_time"] = end_time
 
     try:
-        response = requests.get(f"{API_URL}/slices", params=params)
-        return response.json().get("slices", []) if response.status_code == 200 else []
+        while True:
+            response = requests.get(f"{API_URL}/slices", params=params)
+            if response.status_code != 200:
+                print(f"Error fetching slices: {response.status_code} - {response.text}")
+                break  # Exit loop if request fails
+
+            slices = response.json().get("slices", [])
+            if not slices:
+                break  # Stop if no more slices are returned
+
+            all_slices.extend(slices)
+            params["page"] += 1  # Move to the next page
+
+        return all_slices
+
     except requests.RequestException as e:
         print(f"Error fetching slices: {e}")
         return []
@@ -82,151 +96,11 @@ def fetch_resource_usage(component_type, user_uuid=None, project_uuid=None, star
 # Load users and projects
 users = fetch_users()
 projects = fetch_projects()
-'''
-# Create Dash app
-app = dash.Dash(__name__)
 
-# Layout with multiple tabs
-app.layout = html.Div([
-    html.H1("Resource & Allocation Dashboard"),
-
-    dcc.Tabs([
-        # Tab 1: Slices Based on Time Range
-        dcc.Tab(label="Slices Per Site (Time Range)", children=[
-            html.Label("Select User:"),
-            dcc.Dropdown(
-                id="user-dropdown-slices",
-                options=[{"label": user["user_email"], "value": user["user_uuid"]} for user in users],
-                placeholder="Select a user...",
-            ),
-            html.Label("Select Project:"),
-            dcc.Dropdown(
-                id="project-dropdown-slices",
-                options=[{"label": project["project_name"], "value": project["project_uuid"]} for project in projects],
-                placeholder="Select a project...",
-            ),
-            #html.Label("Start DateTime (UTC) - Format: YYYY-MM-DDTHH:MM:SSZ"),
-            #dcc.Input(id="start-datetime-slices", type="text", placeholder="2025-02-01T00:00:00Z"),
-            #html.Label("End DateTime (UTC) - Format: YYYY-MM-DDTHH:MM:SSZ"),
-            #dcc.Input(id="end-datetime-slices", type="text", placeholder="2025-02-28T23:59:59Z"),
-            html.Label("Start DateTime (UTC)"),
-            dmc.DateTimePicker(id="start-datetime-slices", value=None),
-
-            html.Label("End DateTime (UTC)"),
-            dmc.DateTimePicker(id="end-datetime-slices", value=None),
-
-            dcc.Graph(id="slices-chart"),
-        ]),
-
-        # Tab 2: Resource Usage
-        dcc.Tab(label="Resource Usage", children=[
-            html.Label("Select Component Type:"),
-            dcc.Dropdown(
-                id="resource-dropdown",
-                options=[{"label": c, "value": c} for c in ["SharedNIC", "SmartNIC", "FPGA", "GPU", "NVME", "Storage"]],
-                placeholder="Select a component"
-            ),
-            html.Label("Select User:"),
-            dcc.Dropdown(
-                id="user-dropdown-resource",
-                options=[{"label": user["user_email"], "value": user["user_uuid"]} for user in users],
-                placeholder="Select a user...",
-            ),
-            html.Label("Select Project:"),
-            dcc.Dropdown(
-                id="project-dropdown-resource",
-                options=[{"label": project["project_name"], "value": project["project_uuid"]} for project in projects],
-                placeholder="Select a project...",
-            ),
-
-            #html.Label("Start DateTime (UTC) - Format: YYYY-MM-DDTHH:MM:SSZ"),
-            #dcc.Input(id="start-datetime-resource", type="text", placeholder="2025-02-01T00:00:00Z"),
-            #html.Label("End DateTime (UTC) - Format: YYYY-MM-DDTHH:MM:SSZ"),
-            #dcc.Input(id="end-datetime-resource", type="text", placeholder="2025-02-28T23:59:59Z"),
-
-            html.Label("Start DateTime (UTC)"),
-            dmc.DateTimePicker(id="start-datetime-slices", value=None),
-
-            html.Label("End DateTime (UTC)"),
-            dmc.DateTimePicker(id="end-datetime-slices", value=None),
-
-            html.Div(id="resource-output")
-        ]),
-    ])
-])
-
-
-# === CALLBACKS ===
-
-@app.callback(
-    Output("slices-chart", "figure"),
-    [
-        Input("user-dropdown-slices", "value"),
-        Input("project-dropdown-slices", "value"),
-        Input("start-datetime-slices", "value"),
-        Input("end-datetime-slices", "value"),
-    ]
-)
-def update_slices_chart(selected_user, selected_project, start_datetime, end_datetime):
-    start_time = to_iso_format(start_datetime) if start_datetime else None
-    end_time = to_iso_format(end_datetime) if end_datetime else None
-
-    slices = fetch_slices(user_uuid=selected_user, project_uuid=selected_project, start_time=start_time,
-                          end_time=end_time)
-    df = pd.DataFrame(slices)
-
-    if df.empty or "site_name" not in df:
-        return px.bar(title="No Data Available")
-
-    site_counts = df["site_name"].value_counts().reset_index()
-    site_counts.columns = ["Site", "Slices Count"]
-
-    return px.bar(
-        site_counts,
-        x="Site",
-        y="Slices Count",
-        title="Slices Per Site (Time Range)",
-        color="Site"
-    )
-
-
-@app.callback(
-    Output("resource-output", "children"),
-    [
-        Input("resource-dropdown", "value"),
-        Input("user-dropdown-resource", "value"),
-        Input("project-dropdown-resource", "value"),
-        Input("start-datetime-resource", "value"),
-        Input("end-datetime-resource", "value"),
-    ]
-)
-def update_resource(component_type, selected_user, selected_project, start_datetime, end_datetime):
-    start_time = to_iso_format(start_datetime) if start_datetime else None
-    end_time = to_iso_format(end_datetime) if end_datetime else None
-
-    data = fetch_resource_usage(component_type=component_type, user_uuid=selected_user, project_uuid=selected_project,
-                                start_time=start_time, end_time=end_time)
-
-    # Handle cases where no data is returned
-    if not data or not isinstance(data, list):
-        return "No data found"
-
-    # Format the data into a readable string
-    response_str = "\n".join(
-        [f"User: {entry['user_uuid']} | Project: {entry['project_uuid']} | Count: {entry['count']}" for entry in data]
-    )
-
-    # Use html.Pre to preserve formatting
-    return html.Pre(response_str)
-
-
-if __name__ == "__main__":
-    app.run_server(debug=True, host="0.0.0.0", port=8050)
-'''
 # Create Dash app with Bootstrap styling
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-# ✅ Updated layout using DBC
+# Updated layout using DBC
 app.layout = dbc.Container([
     html.H1("Resource & Allocation Dashboard", className="text-center mb-4"),
 
@@ -364,7 +238,7 @@ def update_resource(component_type, selected_user, selected_project, start_datet
         return "No data found"
 
     response_str = "\n".join(
-        [f"User: {entry['user_uuid']} | Project: {entry['project_uuid']} | Count: {entry['count']}" for entry in data]
+        [f"User: {entry['user_email']}/{entry['user_uuid']} | Project: {entry['project_name']}/{entry['project_uuid']} | Count: {entry['count']}" for entry in data]
     )
 
     return html.Pre(response_str)
