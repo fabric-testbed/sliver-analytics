@@ -38,6 +38,7 @@ services:
   analytics-api:
     build: ./analytics-api
     container_name: analytics-api
+    image: analytics-api:1.0.0
     restart: always
     depends_on:
       - database
@@ -48,6 +49,7 @@ services:
 
   analytics-dash:
     build: ./analytics-dash
+    image: analytics-dash:1.0.0
     container_name: analytics-dash
     depends_on:
       - analytics-api
