@@ -2,14 +2,13 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flasgger import Swagger
 from datetime import datetime
-
+import os
 from sqlalchemy import func, distinct, and_
 
 app = Flask(__name__)
 
 # PostgreSQL Configuration
-#app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://fabric:fabric@report-db:5432/report"
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://fabric:fabric@reports.fabric-testbed.net:5432/analytics"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)

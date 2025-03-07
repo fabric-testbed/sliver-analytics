@@ -46,9 +46,9 @@ services:
     environment:
       DATABASE_URL: "postgresql://fabric:fabric@analytics-db:5432/analytics"
 
-  dash-app:
-    build: ./dash-app
-    container_name: dash-app
+  analytics-dash:
+    build: ./analytics-dash
+    container_name: analytics-dash
     depends_on:
       - analytics-api
     networks:
