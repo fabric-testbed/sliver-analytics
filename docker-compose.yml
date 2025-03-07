@@ -45,7 +45,7 @@ services:
     networks:
       - backend   # Ensure the API is on the backend network
     environment:
-      DATABASE_URL: "postgresql://fabric:fabric@analytics-db:5432/analytics"
+      DATABASE_URL: ${DATABASE_URL:-"postgresql://fabric:fabric@analytics-db:5432/analytics"}
 
   analytics-dash:
     build: ./analytics-dash
